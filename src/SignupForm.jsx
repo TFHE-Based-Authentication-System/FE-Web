@@ -7,7 +7,7 @@ function SignupForm() {
         회원가입 <span className="sparkles">✨</span>
       </h1>
       <p className="signup-subtext">
-        AI 얼굴 인증 서비스를 이용하려면 회원가입하세요.
+        AI 얼굴 인증 서비스를 이용하려면 회원가입하세요
       </p>
       <form className="signup-form">
         <input type="email" placeholder="아이디(이메일)를 입력하세요" />
