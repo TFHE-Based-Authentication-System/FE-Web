@@ -1,86 +1,66 @@
-// FaceNetEmbedder.jsx
-import React, { useRef, useEffect, useState } from "react";
-import * as tf from "@tensorflow/tfjs";
-import * as blazeface from "@tensorflow-models/blazeface";
+import * as faceapi from 'face-api.js';
+import { useEffect, useRef, useState } from 'react';
 
-function FaceNetEmbedder({ onEmbeddingReady, isRegistering }) {
+function FaceEmbedding({ onEmbeddingReady }) {
   const videoRef = useRef(null);
-  const [blazeModel, setBlazeModel] = useState(null);
-  const [faceNetModel, setFaceNetModel] = useState(null);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
 
   useEffect(() => {
-    const loadModels = async () => {
-      const blaze = await blazeface.load();
-      setBlazeModel(blaze);
-      const facenet = await tf.loadGraphModel("/facenet/model.json");
-      setFaceNetModel(facenet);
-    };
-
-    const startCamera = async () => {
+    async function loadModels() {
+      await Promise.all([
+        faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition'),
+        faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68'),
+        faceapi.nets.tinyFaceDetector.loadFromUri('/models/tiny_face_detector'),
+      ]);
+      setModelsLoaded(true);
+    }
+  
+    async function startCamera() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) videoRef.current.srcObject = stream;
-    };
-
+      videoRef.current.srcObject = stream;
+    }
+  
     loadModels();
     startCamera();
   }, []);
 
   const handleCapture = async () => {
-    if (!blazeModel || !faceNetModel) return;
-
-    const video = videoRef.current;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const imageTensor = tf.browser.fromPixels(canvas);
-    const predictions = await blazeModel.estimateFaces(imageTensor, false);
-
-    if (predictions.length > 0) {
-      const face = predictions[0];
-      const [x, y, w, h] = [
-        face.topLeft[0],
-        face.topLeft[1],
-        face.bottomRight[0] - face.topLeft[0],
-        face.bottomRight[1] - face.topLeft[1],
-      ];
-
-      const cropped = tf.image.cropAndResize(
-        imageTensor.expandDims(0),
-        [[y / canvas.height, x / canvas.width, (y + h) / canvas.height, (x + w) / canvas.width]],
-        [0], [160, 160]
-      );
-
-      const preprocessed = cropped.div(255);
-      const embedding = await faceNetModel.predict(preprocessed).data();
-
-      onEmbeddingReady(Array.from(embedding));
-      alert("✅ 얼굴 임베딩 추출 완료!");
-    } else {
-      alert("❗️얼굴을 찾을 수 없습니다.");
+    if (!modelsLoaded) {
+      alert('아직 모델이 로드되지 않았습니다.');
+      return;
     }
-    imageTensor.dispose();
+  
+    const video = videoRef.current;
+    const detection = await faceapi
+      .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+    
+    if (detection) {
+      const embedding = Array.from(detection.descriptor); 
+      console.log('✅ 얼굴 임베딩 벡터:', embedding); // <= 추가!
+      onEmbeddingReady(embedding); // 부모 컴포넌트에 넘겨주기
+      alert('✅ 얼굴 임베딩 완료');
+    } else {
+      alert('❗ 얼굴을 찾을 수 없습니다.');
+    }
   };
 
   return (
-    <div style={{ textAlign: "center" }}>
+    <div style={{ textAlign: 'center' }}>
       <video
         ref={videoRef}
         autoPlay
-        playsInline
         muted
+        playsInline
         width="320"
         height="240"
-        style={{ borderRadius: "10px", boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}
-      ></video>
+        style={{ border: '1px solid black' }}
+      />
       <br />
-      <button onClick={handleCapture} style={{ marginTop: "10px", padding: "10px 20px" }}>
-        얼굴 캡처 및 임베딩 추출
-      </button>
+      <button onClick={handleCapture}>얼굴 캡처 & 임베딩 뽑기</button>
     </div>
   );
 }
 
-export default FaceNetEmbedder;
+export default FaceEmbedding;
