@@ -4,6 +4,16 @@ import { useEffect, useRef, useState } from 'react';
 function FaceEmbedding({ onEmbeddingReady }) {
   const videoRef = useRef(null);
   const [modelsLoaded, setModelsLoaded] = useState(false);
+  const downloadEmbedding = (embedding) => {
+    const blob = new Blob([JSON.stringify(embedding)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "embedding.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  
 
   useEffect(() => {
     async function loadModels() {
@@ -38,13 +48,16 @@ function FaceEmbedding({ onEmbeddingReady }) {
     
     if (detection) {
       const embedding = Array.from(detection.descriptor); 
-      console.log('✅ 얼굴 임베딩 벡터:', embedding); // <= 추가!
-      onEmbeddingReady(embedding); // 부모 컴포넌트에 넘겨주기
+      console.log('✅ 얼굴 임베딩 벡터:', embedding);
+      
+      downloadEmbedding(embedding); // ✅ 이 줄 추가
+      onEmbeddingReady(embedding); // 기존 로직 유지
       alert('✅ 얼굴 임베딩 완료');
     } else {
       alert('❗ 얼굴을 찾을 수 없습니다.');
     }
   };
+  
 
   return (
     <div style={{ textAlign: 'center' }}>

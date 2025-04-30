@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import "./SignupForm.css"; // 스타일 재활용
+import axios from "axios";
 
 function Login({ onLoginSuccess, showSignUp, showMain }) {
   const [email, setEmail] = useState("");
@@ -8,18 +9,34 @@ function Login({ onLoginSuccess, showSignUp, showMain }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch("http://localhost:8000/api/user/login", {
+      const response = await fetch("https://faceauthserver.shop/api/user/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email: email.trim(),  // 🔹 혹시 모를 공백 제거
+          password: password
+        }),
       });
+  
       const data = await response.json();
-      if (response.ok) onLoginSuccess(data.name);
-      else alert("로그인 실패: " + data.detail);
+      if (response.ok) {
+        onLoginSuccess(data.name);
+      } else {
+        console.error("❗ 서버 응답 에러:", data);
+        alert("로그인 실패: " + (data.message || "서버 응답 오류"));
+      }
     } catch (err) {
+      console.error("❗ 네트워크 에러:", err);
       alert("서버 오류 발생");
     }
   };
+  
+  
+  
+  
+  
 
   return (
     <div className="signup-container">

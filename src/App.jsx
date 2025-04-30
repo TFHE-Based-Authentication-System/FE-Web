@@ -6,8 +6,11 @@ import "./App.css";
 
 function App() {
   // ✅ 개발용 자동 로그인 상태
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
-  const [nickname, setNickname] = useState("개발자테스트");
+  // const [isLoggedIn, setIsLoggedIn] = useState(true);
+  // const [nickname, setNickname] = useState("개발자테스트");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [nickname, setNickname] = useState("");
+
 
   const [showSignUp, setShowSignUp] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
