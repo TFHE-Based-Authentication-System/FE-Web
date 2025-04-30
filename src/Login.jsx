@@ -15,23 +15,24 @@ function Login({ onLoginSuccess, showSignUp, showMain }) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          email: email.trim(),  // 🔹 혹시 모를 공백 제거
+          email: email.trim(),
           password: password
         }),
       });
   
-      const data = await response.json();
-      if (response.ok) {
-        onLoginSuccess(data.name);
+      const resultText = await response.text(); // 🔄 JSON이 아니라 plain text
+  
+      if (response.ok && resultText === "로그인 성공") {
+        onLoginSuccess(email); // 이름이 없으므로 email로 로그인 처리
       } else {
-        console.error("❗ 서버 응답 에러:", data);
-        alert("로그인 실패: " + (data.message || "서버 응답 오류"));
+        alert("로그인 실패: " + resultText);
       }
     } catch (err) {
       console.error("❗ 네트워크 에러:", err);
       alert("서버 오류 발생");
     }
   };
+  
   
   
   

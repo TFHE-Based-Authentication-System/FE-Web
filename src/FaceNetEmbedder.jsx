@@ -1,18 +1,20 @@
 import * as faceapi from 'face-api.js';
+import { encryptEmbedding } from "./encryptor";
 import { useEffect, useRef, useState } from 'react';
 
 function FaceEmbedding({ onEmbeddingReady }) {
   const videoRef = useRef(null);
   const [modelsLoaded, setModelsLoaded] = useState(false);
-  const downloadEmbedding = (embedding) => {
-    const blob = new Blob([JSON.stringify(embedding)], { type: "application/json" });
+  const downloadEmbeddingWithName = (data, filename) => {
+    const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "embedding.json";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };
+  
   
 
   useEffect(() => {
@@ -46,13 +48,20 @@ function FaceEmbedding({ onEmbeddingReady }) {
       .withFaceLandmarks()
       .withFaceDescriptor();
     
-    if (detection) {
-      const embedding = Array.from(detection.descriptor); 
-      console.log('✅ 얼굴 임베딩 벡터:', embedding);
+      if (detection) {
+        const embedding = Array.from(detection.descriptor); 
+        console.log('✅ 얼굴 임베딩 벡터:', embedding);
+        downloadEmbeddingWithName(embedding, "embedding_plain.json");     // 원본
       
-      downloadEmbedding(embedding); // ✅ 이 줄 추가
-      onEmbeddingReady(embedding); // 기존 로직 유지
-      alert('✅ 얼굴 임베딩 완료');
+        const ciphertext = encryptEmbedding(embedding); // 🔐 자동 암호화
+        console.log("🔐 암호화된 결과:", ciphertext);
+        
+        downloadEmbeddingWithName(ciphertext, "embedding_encrypted.json"); // 암호문
+
+
+      
+        onEmbeddingReady(ciphertext); // ← 이걸로 전달 변경도 고려 가능
+        alert('✅ 얼굴 임베딩 및 암호화 완료');
     } else {
       alert('❗ 얼굴을 찾을 수 없습니다.');
     }
