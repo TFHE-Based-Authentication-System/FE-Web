@@ -5,6 +5,7 @@ import axios from "axios";
 function Login({ onLoginSuccess, showSignUp, showMain }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,18 +21,21 @@ function Login({ onLoginSuccess, showSignUp, showMain }) {
         }),
       });
   
-      const resultText = await response.text(); // 🔄 JSON이 아니라 plain text
-  
-      if (response.ok && resultText === "로그인 성공") {
-        onLoginSuccess(email); // 이름이 없으므로 email로 로그인 처리
-      } else {
-        alert("로그인 실패: " + resultText);
-      }
+      const result = await response.json();
+
+        if (response.ok && result.message === "로그인 성공") {
+          localStorage.setItem("email", email.trim());
+          localStorage.setItem("userId", result.id); // ✅ userId 저장
+          onLoginSuccess(email); // 로그인 성공 처리
+        } else {
+          alert("로그인 실패: " + (result.message || "알 수 없는 오류"));
+        }
     } catch (err) {
       console.error("❗ 네트워크 에러:", err);
       alert("서버 오류 발생");
     }
   };
+  
   
   
   
