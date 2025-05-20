@@ -1,116 +1,47 @@
-  // // 암호화 관련 상수
-  // const N = 256;
-  // const DELTA = Math.pow(2, 20);
+export const N = 256n;
+export const Q = 2n ** 120n;
+export const DELTA = 2n ** 80n;
 
-  // // 복소수 표현 구조
-  // class Complex {
-  //   constructor(re, im) {
-  //     this.re = re;
-  //     this.im = im;
-  //   }
-  // }
-
-  // // -------------------------
-  // // 1. Hermitian 확장
-  // // -------------------------
-  // export function hermitianExtend(vec) {
-  //   return vec.concat([...vec].reverse());
-  // }
-
-  // // -------------------------
-  // // 2. 수식 기반 IFFT
-  // // -------------------------
-  // export function pureIFFT(X) {
-  //   const N = X.length;
-  //   let result = [];
-
-  //   for (let n = 0; n < N; n++) {
-  //     let re_sum = 0, im_sum = 0;
-  //     for (let k = 0; k < N; k++) {
-  //       const angle = (2 * Math.PI * k * n) / N;
-  //       const cos = Math.cos(angle);
-  //       const sin = Math.sin(angle);
-  //       const a = X[k].re, b = X[k].im;
-  //       re_sum += a * cos - b * sin;
-  //       im_sum += a * sin + b * cos;
-  //     }
-  //     result.push(new Complex(re_sum / N, im_sum / N));
-  //   }
-
-  //   return result;
-  // }
-
-  // // -------------------------
-  // // 3. 다항식 생성 및 곱
-  // // -------------------------
-  // export function genSmallPoly(n, values) {
-  //   return Array.from({ length: n }, () => values[Math.floor(Math.random() * values.length)]);
-  // }
-
-  // // 원형 컨볼루션 또는 Z_n[x]/(x^N-1) 에서의 다항식 곱셈
-  // export function polyMul(p1, p2) {
-  //   const N = p1.length;
-  //   const result = new Array(N).fill(0);
-  //   for (let i = 0; i < N; i++) {
-  //     for (let j = 0; j < N; j++) {
-  //       const idx = (i + j) % N;
-  //       result[idx] += p1[i] * p2[j];
-  //     }
-  //   }
-  //   return result;
-  // }
-
-  // // -------------------------
-  // // 4. 암호화 전체 파이프라인
-  // // -------------------------
-  // export function encryptEmbedding(embedding) {
-  //   const extended = hermitianExtend(embedding);                 // 128 → 256
-  //   const X_input = extended.map(x => new Complex(x, 0));
-  //   const ifft = pureIFFT(X_input);
-  //   const m = ifft.map(z => Math.round(z.re * DELTA));          // 메시지 다항식 (정수)
-
-  //   const a = Array.from({ length: N }, () => Math.random() * 2 - 1); // 공개키 a : [-1, 1) 범위의 실수 난수를 생성
-  //   const s = genSmallPoly(N, [-1, 0, 1]);                            // 비밀키 s
-  //   const e = genSmallPoly(N, [-1, 0, 1]);                            // 노이즈 e
-  //   const b = a.map((ai, i) => -ai * s[i] + e[i]);                    // 공개키 b = -as + e
-
-  //   const u = genSmallPoly(N, [0, 1]);                                // 암호화용 u
-  //   const e1 = genSmallPoly(N, [-1, 0, 1]);
-  //   const e2 = genSmallPoly(N, [-1, 0, 1]);
-
-  //   const bu = polyMul(b, u); // u·b
-  //   const au = polyMul(a, u); // u·a
-
-  //   // (m,0)+u⋅(b,a)+(e1,e2)=(m+u⋅b+e1, u⋅a+e2)
-  //   const c1 = m.map((mi, i) => mi + bu[i] + e1[i]); // c₁ = m + u·b + e₁
-  //   const c2 = au.map((val, i) => val + e2[i]); // c₂ = u·a + e₂
-
-  //   return {
-  //     full: { c1, c2, a, s, u }  // 🔥 u 추가
-  //   };
-    
-  //   // 복호화 해보기-> 서버에 보내기
-
-  //   // 백엔드 유클리드 거리-> 설치 쉬운 라이브러리 링크 리눅스 환경 지원 pip 명령어로 설치
-
-  //   // 프론트에서 복호화 구현 암호화 잘되었는지 확인 , 백엔드에서는 라이브러리 사용방법 익히기, 다음주에는 프론트에서 백엔드로 암호문 보내서 백엔드 처리 연결
-  // }
-  const N = 256;
-const DELTA = Math.pow(2, 20);
-
-class Complex {
+export class Complex {
   constructor(re, im) {
     this.re = re;
     this.im = im;
   }
 }
 
-// 1. Hermitian 확장 (128 → 256)
 export function hermitianExtend(vec) {
   return vec.concat([...vec].reverse());
 }
 
-// 2. 수식 기반 IFFT
+export function genSmallPoly(n, values) {
+  return Array.from({ length: n }, () =>
+    BigInt(values[Math.floor(Math.random() * values.length)])
+  );
+}
+
+export function polyMulMod(p1, p2, q = Q) {
+  const Nint = Number(N);
+  const full = new Array(2 * Nint - 1).fill(0n);
+  for (let i = 0; i < Nint; i++) {
+    for (let j = 0; j < Nint; j++) {
+      full[i + j] += BigInt(p1[i]) * BigInt(p2[j]);
+    }
+  }
+
+  const reduced = new Array(Nint).fill(0n);
+  for (let i = 0; i < full.length; i++) {
+    const idx = i % Nint;
+    if (i < Nint) {
+      reduced[idx] += full[i];
+    } else {
+      reduced[idx] -= full[i]; // x^N ≡ -1
+    }
+    reduced[idx] = ((reduced[idx] % q) + q) % q;
+  }
+
+  return reduced;
+}
+
 export function pureIFFT(X) {
   const N = X.length;
   let result = [];
@@ -131,74 +62,76 @@ export function pureIFFT(X) {
   return result;
 }
 
-// 3. 다항식 생성 및 곱
-export function genSmallPoly(n, values) {
-  return Array.from({ length: n }, () => values[Math.floor(Math.random() * values.length)]);
-}
-
-export function polyMul(p1, p2) {
-  const N = p1.length;
-  const result = new Array(N).fill(0);
-  for (let i = 0; i < N; i++) {
-    for (let j = 0; j < N; j++) {
-      const idx = (i + j) % N;
-      result[idx] += p1[i] * p2[j];
-    }
-  }
-  return result;
-}
-
-// 4. 암호화 함수
 export function encryptEmbedding(embedding) {
-  const extended = hermitianExtend(embedding);                 
+  const extended = hermitianExtend(embedding);
   const X_input = extended.map(x => new Complex(x, 0));
   const ifft = pureIFFT(X_input);
-  const m = ifft.map(z => Math.round(z.re * DELTA));           
 
-  const a = Array.from({ length: N }, () => Math.random() * 2 - 1);
+  const m = ifft.map(z => {
+    const val = BigInt(Math.round(z.re * Number(DELTA)));
+    return ((val % Q) + Q) % Q;
+  });
 
-  //  a를 바꿀거임 q는 2의 60 승정도 되는 정수로 도입하고 
-  const s = genSmallPoly(N, [-1, 0, 1]);                            
-  const e = genSmallPoly(N, [-1, 0, 1]);                            
-  const b = a.map((ai, i) => -ai * s[i] + e[i]);                    
+  // a ∈ [-Q/2, Q/2]
+  const a = Array.from({ length: Number(N) }, () => {
+    const rand = BigInt(Math.floor(Math.random() * Number(Q)));
+    return ((rand - Q / 2n + Q) % Q);
+  });
 
-  const u = genSmallPoly(N, [0, 1]);                                
-  const e1 = genSmallPoly(N, [-1, 0, 1]);
-  const e2 = genSmallPoly(N, [-1, 0, 1]);
+  const s = genSmallPoly(Number(N), [-1n, 0n, 1n]);
+  const e = genSmallPoly(Number(N), [-1n, 0n, 1n]);
+  const b = a.map((ai, i) => ((-ai * s[i] + e[i]) % Q + Q) % Q);
 
-  const bu = polyMul(b, u); 
-  const au = polyMul(a, u); 
+  const u = genSmallPoly(Number(N), [0n, 1n]);
+  const e1 = genSmallPoly(Number(N), [-1n, 0n, 1n]);
+  const e2 = genSmallPoly(Number(N), [-1n, 0n, 1n]);
 
-  const c1 = m.map((mi, i) => mi + bu[i] + e1[i]);
-  const c2 = au.map((val, i) => val + e2[i]);
+  const bu = polyMulMod(b, u);
+  const au = polyMulMod(a, u);
+
+  const c1 = m.map((mi, i) => ((mi + bu[i] + e1[i]) % Q + Q) % Q);
+  const c2 = au.map((ai, i) => ((ai + e2[i]) % Q + Q) % Q);
 
   return {
-    full: { c1, c2, a, s, u, m, originalIFFT: ifft }
+    full: {
+      c1, c2, a, b, s, u, m, originalIFFT: ifft
+    }
   };
 }
 
-// 5. 복호화 함수
 export function decryptEmbedding(c1, c2, s) {
-  const s_c2 = polyMul(s, c2);
-  const m_rec = c1.map((ci, i) => ci + s_c2[i]);
-  return m_rec.map(val => val / DELTA);  // 복호화 후 실수로 변환
+  const s_c2 = polyMulMod(s, c2);
+  return c1.map((ci, i) => ((ci + s_c2[i]) % Q + Q) % Q);
 }
 
-// 6. 테스트 예시 실행
-export function testEncryption() {
-  const embedding = Array.from({ length: 128 }, () => Math.random()); 
+export function verifyEncryptedMessage(originalIFFT, decryptedBigVec) {
+  const diffs = originalIFFT.map((z, i) => {
+    const expected = BigInt(Math.round(z.re * Number(DELTA)));
+    const actual = decryptedBigVec[i];
+    return expected > actual ? expected - actual : actual - expected;
+  });
 
-  const { c1, c2, s, m, originalIFFT } = encryptEmbedding(embedding).full;
-  const decrypted = decryptEmbedding(c1, c2, s);
+  const maxDiff = diffs.reduce((max, val) => val > max ? val : max, 0n);
+  const floatError = Number(maxDiff) / Number(DELTA);
 
-  // 결과 출력
-  console.log("✅ 복호화된 임베딩 (앞 10개):", decrypted.slice(0, 10));
-  console.log("🎯 원래 IFFT 임베딩 (앞 10개):", originalIFFT.slice(0, 10).map(z => z.re));
+  console.log("🔍 최대 오차 (BigInt):", maxDiff.toString());
+  console.log("📉 실수 기준 최대 오차 (maxDiff / DELTA):", floatError.toExponential(10));
 
-  // 평균 제곱 오차(MSE)도 확인해보자
-  const mse = originalIFFT.reduce((sum, z, i) => {
-    const diff = z.re - decrypted[i];
-    return sum + diff * diff;
-  }, 0) / N;
-  console.log(`📉 MSE (Mean Squared Error): ${mse.toExponential(4)}`);
+  return decryptedBigVec.map(bi => Number(bi) / Number(DELTA));
 }
+
+// ... (기존 코드 유지)
+export function evaluateDistanceSquared(d1, d2, d3, s) {
+  const s2 = polyMulMod(s, s); // s²
+  const d2s = polyMulMod(d2, s); // d₂·s
+  const d3s2 = polyMulMod(d3, s2); // d₃·s²
+
+  const m_squared_scaled = d1.map((val, i) =>
+    ((val + d2s[i] + d3s2[i]) % Q + Q) % Q
+  );
+
+  const m_squared = m_squared_scaled.map(x => Number(x) / Number(DELTA) ** 2);
+  const distance = Math.sqrt(m_squared.reduce((sum, x) => sum + x, 0));
+  return distance;
+}
+

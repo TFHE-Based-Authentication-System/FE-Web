@@ -1,31 +1,58 @@
-body {
-  background-color: #f9f9fb;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  margin: 0;
-  padding: 0;
-}
-
-.App {
+.landing-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  padding: 20px;
-}
-
-.main-container {
+  height: 100vh;
   text-align: center;
-  padding: 100px 20px;
+  background-color: #f9fafb;
+  padding: 2rem;
 }
 
-h1 {
-  font-size: 28px;
-  font-weight: bold;
-  margin-bottom: 10px;
+.landing-title {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #111827;
 }
 
-p {
-  color: #555;
-  font-size: 16px;
+.landing-subtitle {
+  font-size: 1.25rem;
+  color: #6b7280;
+  margin-bottom: 2rem;
+}
+
+.landing-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.main-button {
+  background-color: #3b82f6;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.main-button:hover {
+  background-color: #2563eb;
+}
+
+.main-button-outline {
+  background-color: #e5e7eb;
+  color: #111827;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.main-button-outline:hover {
+  background-color: #d1d5db;
 }
