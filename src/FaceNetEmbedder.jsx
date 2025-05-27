@@ -3,11 +3,11 @@ import * as faceapi from 'face-api.js';
 import {
   encryptEmbedding,
   decryptEmbedding,
-  verifyEncryptedMessage,
+  evaluateDistanceSquared,
   Q,
-  DELTA,
-  evaluateDistanceSquared, // ✅ 추가
+  DELTA
 } from "./encryptor";
+
 import { useEffect, useRef, useState } from 'react';
 
 function FaceEmbedding() {
@@ -89,11 +89,14 @@ function FaceEmbedding() {
 
     const userId = localStorage.getItem("userId");
     if (!userId || isNaN(userId)) return alert("유저 정보가 없습니다.");
+    localStorage.setItem("secretKey", JSON.stringify(s_str));
 
     fetch("https://faceauthserver.shop/api/features", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: Number(userId), vector: { c1: c1_str, c2: c2_str, s: s_str } }) 
+      // ✅ 서버에 보낼 벡터에서 s 제거
+      body: JSON.stringify({ userId: Number(userId), vector: { c1: c1_str, c2: c2_str } })
+
     })
       .then(res => res.text())
       .then(data => console.log("✔️ 저장 완료:", data))
@@ -125,6 +128,8 @@ function FaceEmbedding() {
   
     URL.revokeObjectURL(url);
     alert("✅ 비교용 암호문 저장 완료: received_vector.json");
+    localStorage.setItem("secretKey", JSON.stringify(s_str));
+
   };
   
 
@@ -147,61 +152,135 @@ function FaceEmbedding() {
     alert("✅ 테스트용 암호문 저장 완료 (JSON)");
   };
 
-  const handleVerify = async () => {
-    if (!modelsLoaded) return alert('아직 모델이 로드되지 않았습니다.');
-    const embedding = await extractEmbedding();
-    if (!embedding) return alert('❗ 얼굴을 찾을 수 없습니다.');
+  // 인증 초기 함수임
+  // const handleVerify = async () => {
+  //   if (!modelsLoaded) return alert('아직 모델이 로드되지 않았습니다.');
+  //   const embedding = await extractEmbedding();
+  //   if (!embedding) return alert('❗ 얼굴을 찾을 수 없습니다.');
 
-    const { c1, c2 } = encryptEmbedding(embedding).full;
-    const c1_str = c1.map(x => x.toString());
-    const c2_str = c2.map(x => x.toString());
+  //   const { c1, c2 } = encryptEmbedding(embedding).full;
+  //   const c1_str = c1.map(x => x.toString());
+  //   const c2_str = c2.map(x => x.toString());
 
-    const email = localStorage.getItem("email");
-    if (!email) return alert("이메일 정보가 없습니다.");
+  //   const email = localStorage.getItem("email");
+  //   if (!email) return alert("이메일 정보가 없습니다.");
 
-    fetch("https://faceauthserver.shop/api/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, vector: { c1: c1_str, c2: c2_str } })
-    })
-      .then(res => res.json())
-      .then(data => {
-        console.log("🔍 인증 결과:", data);
-        alert(data.match ? "✅ 얼굴 인증 성공!" : "❌ 얼굴 인증 실패");
-      })
-      .catch(err => {
-        console.error("❌ 인증 요청 실패:", err);
-        alert("❌ 서버 오류");
-      });
-  };
+  //   fetch("https://faceauthserver.shop/api/verify", {
+  //     method: "POST",
+  //     headers: { "Content-Type": "application/json" },
+  //     body: JSON.stringify({ email, vector: { c1: c1_str, c2: c2_str } })
+  //   })
+  //     .then(res => res.json())
+  //     .then(data => {
+  //       console.log("🔍 인증 결과:", data);
+  //       alert(data.match ? "✅ 얼굴 인증 성공!" : "❌ 얼굴 인증 실패");
+  //     })
+  //     .catch(err => {
+  //       console.error("❌ 인증 요청 실패:", err);
+  //       alert("❌ 서버 오류");
+  //     });
+  // };
+  
 
+  // const handleCompareWithServerResult = async () => {
+  //   try {
+  //     const email = localStorage.getItem("email");
+  //     if (!email) return alert("이메일 정보가 없습니다.");
+  
+  //     const res = await fetch(`https://faceauthserver.shop/api/compare/result?email=${email}`);
+  //     const { d1, d2, d3 } = await res.json();
+  //     if (!d1 || !d2 || !d3) {
+  //       console.error("❌ 서버에서 d1, d2, d3을 받지 못했습니다.");
+  //       alert("❌ 등록된 얼굴 데이터가 없거나 비교할 수 없습니다. 먼저 얼굴을 등록해주세요.");
+  //       return;
+  //     }
+  
+  //     const s_str = localStorage.getItem("secretKey");
+  //     if (!s_str) return alert("Secret key가 없습니다. 먼저 얼굴을 등록하세요.");
+  
+  //     const s = JSON.parse(s_str).map(BigInt);
+  //     const d1_bi = d1.map(BigInt);
+  //     const d2_bi = d2.map(BigInt);
+  //     const d3_bi = d3.map(BigInt);
+  
+  //     const distance = evaluateDistanceSquared(d1_bi, d2_bi, d3_bi, s);
+  //     console.log(`📏 복호화된 거리 제곱 ≈ ${distance}`);
+  //     alert(`🔍 거리 ≈ ${distance.toFixed(6)} (이 값이 r 근처면 동일인)`);
+  
+  //     // 서버에 r 추정값 보내기
+  //     const response = await fetch("https://faceauthserver.shop/api/verify/r", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({
+  //         email,
+  //         guessedR: distance.toFixed(6)
+  //       }),
+  //     });
+  
+  //     const { match } = await response.json();
+  //     alert(match ? "✅ 얼굴 일치!" : "❌ 얼굴 불일치");
+  
+  //   } catch (err) {
+  //     console.error("❌ 거리 비교 실패:", err);
+  //     alert("❗ 거리 계산 중 오류 발생");
+  //   }
+  // };
+  
   const handleCompareWithServerResult = async () => {
     try {
-      // 서버(Spring Boot)에서 d1, d2, d3 받아오기
       const email = localStorage.getItem("email");
       if (!email) return alert("이메일 정보가 없습니다.");
   
-      const res = await fetch(`https://faceauthserver.shop/api/compare/result?email=${email}`);
-      const { d1, d2, d3 } = await res.json();
-  
-      // 시크릿키 불러오기
       const s_str = localStorage.getItem("secretKey");
       if (!s_str) return alert("Secret key가 없습니다. 먼저 얼굴을 등록하세요.");
-  
       const s = JSON.parse(s_str).map(BigInt);
-      const d1_bi = d1.map(BigInt);
-      const d2_bi = d2.map(BigInt);
-      const d3_bi = d3.map(BigInt);
   
-      // 거리 계산
-      const distance = evaluateDistanceSquared(d1_bi, d2_bi, d3_bi, s);
-      console.log(`📏 복호화된 거리 제곱값: ${distance}`);
-      alert(`🔍 두 벡터 간 거리 ≈ ${distance.toFixed(6)}`);
+      const embedding = await extractEmbedding();
+      if (!embedding) return alert("❗ 얼굴을 찾을 수 없습니다.");
+  
+      const { c1, c2 } = encryptEmbedding(embedding).full;
+      const c1_num = c1.map(Number);
+      const c2_num = c2.map(Number);
+  
+      // 서버에 암호문 전송 → d1 = a, d2 = b, d3 = c 형태 응답 받음
+      const res = await fetch("https://faceauthserver.shop/api/features/coefficients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, c1: c1_num, c2: c2_num })
+      });
+  
+      const responseJson = await res.json();
+      if (!Array.isArray(responseJson) || responseJson.length === 0) {
+        console.error("❌ 서버에서 유효한 a,b,c 응답을 받지 못했습니다.");
+        alert("❌ 비교 결과가 올바르지 않습니다.");
+        return;
+      }
+  
+      // 📥 서버에서 받은 d1 = a, d2 = b, d3 = c
+      const d1 = responseJson.map(item => BigInt(Math.round(item.a)));
+      const d2 = responseJson.map(item => BigInt(Math.round(item.b)));
+      const d3 = responseJson.map(item => BigInt(Math.round(item.c)));
+      
+
+      
+      console.log("📥 서버 응답 확인 (처리 전):", responseJson.slice(0, 5));
+      console.log("📥 d1:", d1.slice(0, 5));
+      console.log("📥 d2:", d2.slice(0, 5));
+      console.log("📥 d3:", d3.slice(0, 5));
+
+      // ✅ 거리 계산
+      const distance = evaluateDistanceSquared(d1, d2, d3, s); // 내부에서 델타² 나눔
+      console.log(`📏 복호화된 거리 ≈ ${distance}`);
+      alert(`🔍 거리 ≈ ${distance.toFixed(6)} (0에 가까우면 동일인)`);
+  
     } catch (err) {
       console.error("❌ 거리 비교 실패:", err);
       alert("❗ 거리 계산 중 오류 발생");
     }
   };
+  
+  
+  
   
 
   return (
@@ -237,7 +316,7 @@ function FaceEmbedding() {
         justifyContent: 'center'
       }}>
         <button className="primary-button" onClick={handleCapture}>얼굴 등록</button>
-        <button className="primary-button" onClick={handleVerify}>얼굴 인증</button>
+        <button className="primary-button" onClick={handleCompareWithServerResult}>얼굴 인증</button>
         <button className="secondary-button" onClick={handleTestSave}>📥 암호문 저장</button>
         <button className="secondary-button" onClick={handleVerifyDecryption}>🔍 복호화 검증</button>
       </div>
