@@ -1,14 +1,16 @@
 import * as faceapi from 'face-api.js';
-// import { encryptEmbedding, decryptEmbedding, verifyEncryptedMessage, Q, DELTA } from "./encryptor";
+
 import {
   encryptEmbedding,
   decryptEmbedding,
   evaluateDistanceSquared,
   Q,
-  DELTA
+  DELTA,
+  
 } from "./encryptor";
 
 import { useEffect, useRef, useState } from 'react';
+
 
 function FaceEmbedding() {
   const videoRef = useRef(null);
@@ -152,79 +154,16 @@ function FaceEmbedding() {
     alert("✅ 테스트용 암호문 저장 완료 (JSON)");
   };
 
-  // 인증 초기 함수임
-  // const handleVerify = async () => {
-  //   if (!modelsLoaded) return alert('아직 모델이 로드되지 않았습니다.');
-  //   const embedding = await extractEmbedding();
-  //   if (!embedding) return alert('❗ 얼굴을 찾을 수 없습니다.');
-
-  //   const { c1, c2 } = encryptEmbedding(embedding).full;
-  //   const c1_str = c1.map(x => x.toString());
-  //   const c2_str = c2.map(x => x.toString());
-
-  //   const email = localStorage.getItem("email");
-  //   if (!email) return alert("이메일 정보가 없습니다.");
-
-  //   fetch("https://faceauthserver.shop/api/verify", {
-  //     method: "POST",
-  //     headers: { "Content-Type": "application/json" },
-  //     body: JSON.stringify({ email, vector: { c1: c1_str, c2: c2_str } })
-  //   })
-  //     .then(res => res.json())
-  //     .then(data => {
-  //       console.log("🔍 인증 결과:", data);
-  //       alert(data.match ? "✅ 얼굴 인증 성공!" : "❌ 얼굴 인증 실패");
-  //     })
-  //     .catch(err => {
-  //       console.error("❌ 인증 요청 실패:", err);
-  //       alert("❌ 서버 오류");
-  //     });
-  // };
   
-
-  // const handleCompareWithServerResult = async () => {
-  //   try {
-  //     const email = localStorage.getItem("email");
-  //     if (!email) return alert("이메일 정보가 없습니다.");
-  
-  //     const res = await fetch(`https://faceauthserver.shop/api/compare/result?email=${email}`);
-  //     const { d1, d2, d3 } = await res.json();
-  //     if (!d1 || !d2 || !d3) {
-  //       console.error("❌ 서버에서 d1, d2, d3을 받지 못했습니다.");
-  //       alert("❌ 등록된 얼굴 데이터가 없거나 비교할 수 없습니다. 먼저 얼굴을 등록해주세요.");
-  //       return;
-  //     }
-  
-  //     const s_str = localStorage.getItem("secretKey");
-  //     if (!s_str) return alert("Secret key가 없습니다. 먼저 얼굴을 등록하세요.");
-  
-  //     const s = JSON.parse(s_str).map(BigInt);
-  //     const d1_bi = d1.map(BigInt);
-  //     const d2_bi = d2.map(BigInt);
-  //     const d3_bi = d3.map(BigInt);
-  
-  //     const distance = evaluateDistanceSquared(d1_bi, d2_bi, d3_bi, s);
-  //     console.log(`📏 복호화된 거리 제곱 ≈ ${distance}`);
-  //     alert(`🔍 거리 ≈ ${distance.toFixed(6)} (이 값이 r 근처면 동일인)`);
-  
-  //     // 서버에 r 추정값 보내기
-  //     const response = await fetch("https://faceauthserver.shop/api/verify/r", {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({
-  //         email,
-  //         guessedR: distance.toFixed(6)
-  //       }),
-  //     });
-  
-  //     const { match } = await response.json();
-  //     alert(match ? "✅ 얼굴 일치!" : "❌ 얼굴 불일치");
-  
-  //   } catch (err) {
-  //     console.error("❌ 거리 비교 실패:", err);
-  //     alert("❗ 거리 계산 중 오류 발생");
-  //   }
-  // };
+  function downloadJSON(filename, data) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   
   const handleCompareWithServerResult = async () => {
     try {
@@ -255,11 +194,20 @@ function FaceEmbedding() {
         alert("❌ 비교 결과가 올바르지 않습니다.");
         return;
       }
+      console.log("📦 백엔드에서 받은 계수 목록 (상위 5개):");
+      responseJson.slice(0, 5).forEach((item, i) => {
+      console.log(`  [${i}] a (d1) = ${item.a}`);
+      console.log(`      b (d2) = ${item.b}`);
+      console.log(`      c (d3) = ${item.c}`);
+      });
+
   
       // 📥 서버에서 받은 d1 = a, d2 = b, d3 = c
-      const d1 = responseJson.map(item => BigInt(Math.round(item.a)));
-      const d2 = responseJson.map(item => BigInt(Math.round(item.b)));
-      const d3 = responseJson.map(item => BigInt(Math.round(item.c)));
+      const d1 = responseJson.map(item => BigInt(item.a));
+      const d2 = responseJson.map(item => BigInt(item.b));
+      const d3 = responseJson.map(item => BigInt(item.c));
+      
+
       
 
       
@@ -267,9 +215,16 @@ function FaceEmbedding() {
       console.log("📥 d1:", d1.slice(0, 5));
       console.log("📥 d2:", d2.slice(0, 5));
       console.log("📥 d3:", d3.slice(0, 5));
+      // 서버에서 받은 d1 = a, d2 = b, d3 = c
+
+      // 📝 파일로 저장 (문자열 배열로 저장)
+      // downloadJSON("d1.json", d1.map(x => x.toString()));
+      // downloadJSON("d2.json", d2.map(x => x.toString()));
+      // downloadJSON("d3.json", d3.map(x => x.toString()));
 
       // ✅ 거리 계산
-      const distance = evaluateDistanceSquared(d1, d2, d3, s); // 내부에서 델타² 나눔
+      const distance = evaluateDistanceSquared(d1, d2, d3, s);
+
       console.log(`📏 복호화된 거리 ≈ ${distance}`);
       alert(`🔍 거리 ≈ ${distance.toFixed(6)} (0에 가까우면 동일인)`);
   
@@ -277,6 +232,8 @@ function FaceEmbedding() {
       console.error("❌ 거리 비교 실패:", err);
       alert("❗ 거리 계산 중 오류 발생");
     }
+    
+
   };
   
   

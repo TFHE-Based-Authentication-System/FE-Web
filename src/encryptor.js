@@ -1,6 +1,6 @@
 export const N = 256n;
-export const Q = 2n ** 20n;
-export const DELTA = 2n ** 10n;
+export const Q = 2n ** 60n;
+export const DELTA = 2n ** 40n;
 
 export class Complex {
   constructor(re, im) {
@@ -42,6 +42,86 @@ export function polyMulMod(p1, p2, q = Q) {
 
   return reduced;
 }
+// export function polyMulMod(p1, p2, q = Q, label = "🔍 디버그 곱셈", shouldSave = false) {
+//   const Nint = p1.length;
+//   const full = new Array(2 * Nint - 1).fill(0n);
+//   const log = [];
+
+//   log.push(`=== ${label} 시작 ===`);
+
+//   for (let i = 0; i < Nint; i++) {
+//     for (let j = 0; j < Nint; j++) {
+//       const term = BigInt(p1[i]) * BigInt(p2[j]);
+//       full[i + j] += term;
+
+//       if (term !== 0n) {
+//         const line = `📌 p1[${i}] * p2[${j}] = ${p1[i]} * ${p2[j]} = ${term} → full[${i + j}] = ${full[i + j]}`;
+//         console.log(line);
+//         log.push(line);
+//       }
+//     }
+//   }
+
+//   const reduced = new Array(Nint).fill(0n);
+//   for (let i = 0; i < full.length; i++) {
+//     const idx = i % Nint;
+//     const action = i < Nint ? '+' : '-';
+//     const line = `full[${i}] (${full[i]}) ${action}→ reduced[${idx}]`;
+//     log.push(line);
+
+//     if (i < Nint) reduced[idx] += full[i];
+//     else reduced[idx] -= full[i];
+
+//     reduced[idx] = ((reduced[idx] % q) + q) % q;
+//   }
+
+//   log.push(`📉 Reduced 결과 (앞 10개):`);
+//   reduced.slice(0, 10).forEach((val, i) => {
+//     log.push(`  reduced[${i}] = ${val}`);
+//   });
+
+//   if (shouldSave) {
+//     saveDebugLog(log, `${label.replace(/[^a-zA-Z0-9]/g, "_")}.txt`);
+//   }
+
+//   return reduced;
+// }
+
+// export function polyMulMod(p1, p2, q = Q, label = "🔍 디버그 곱셈") {
+//   const Nint = p1.length;
+//   const full = new Array(2 * Nint - 1).fill(0n);
+
+//   console.log(`\n=== ${label} 시작 ===`);
+//   for (let i = 0; i < Nint; i++) {
+//     for (let j = 0; j < Nint; j++) {
+//       const term = BigInt(p1[i]) * BigInt(p2[j]);
+//       full[i + j] += term;
+
+//       if (term !== 0n) {
+//         console.log(`📌 p1[${i}] * p2[${j}] = ${p1[i]} * ${p2[j]} = ${term} → full[${i + j}] = ${full[i + j]}`);
+//       }
+//     }
+//   }
+
+//   const reduced = new Array(Nint).fill(0n);
+//   for (let i = 0; i < full.length; i++) {
+//     const idx = i % Nint;
+//     if (i < Nint) {
+//       reduced[idx] += full[i];
+//     } else {
+//       reduced[idx] -= full[i]; // x^N ≡ -1
+//     }
+//     reduced[idx] = ((reduced[idx] % q) + q) % q;
+//   }
+
+//   console.log(`📉 Reduced 결과 (앞 10개):`);
+//   reduced.slice(0, 10).forEach((val, i) => {
+//     console.log(`  reduced[${i}] = ${val}`);
+//   });
+
+//   return reduced;
+// }
+
 
 export function pureIFFT(X) {
   const N = X.length;
@@ -104,7 +184,9 @@ export function pureIFFT(X) {
 // }
 
 export function encryptEmbedding(embedding) {
-  const extended = hermitianExtend(embedding);
+  const scaled = embedding.map(x => x * 5);
+  // const extended = hermitianExtend(embedding);
+  const extended = hermitianExtend(scaled);
   const X_input = extended.map(x => new Complex(x, 0));
   const ifft = pureIFFT(X_input);
 
@@ -151,6 +233,15 @@ export function encryptEmbedding(embedding) {
   };
 }
 
+function saveDebugLog(logLines, filename = "poly_debug_log.txt") {
+  const blob = new Blob([logLines.join('\n')], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 
 
@@ -176,53 +267,57 @@ export function verifyEncryptedMessage(originalIFFT, decryptedBigVec) {
   return decryptedBigVec.map(bi => Number(bi) / Number(DELTA));
 }
 
-// export function evaluateDistanceSquared(d1, d2, d3, s) {
-//   const s2 = polyMulMod(s, s);       // s²
-//   const d2s = polyMulMod(d2, s);     // d₂·s
-//   const d3s2 = polyMulMod(d3, s2);   // d₃·s²
-
-//   const m_squared_scaled = d1.map((val, i) =>
-//     ((val + d2s[i] + d3s2[i]) % Q + Q) % Q
-//   );
-
-//   const m_squared = m_squared_scaled.map(x => Number(x) / Number(DELTA) ** 2);
-//   const distance = Math.sqrt(m_squared.reduce((sum, x) => sum + x, 0));
-//   return distance;
-// }
-
 export function evaluateDistanceSquared(d1, d2, d3, s) {
   const s2 = polyMulMod(s, s);       // s²
   const d2s = polyMulMod(d2, s);     // d₂·s
-  console.log("🧪 d2 (앞부분):", d2.slice(0, 5));
-  console.log("🧪 s  (앞부분):", s.slice(0, 5));
-
-  // const testMul = polyMulMod(d2.slice(0, 5), s.slice(0, 5));
-  // console.log("🧮 d2·s (테스트):", testMul);
-
-
   const d3s2 = polyMulMod(d3, s2);   // d₃·s²
+  // const s2 = polyMulMod(s, s, Q, "s * s → s²");
+  // const d2s = polyMulMod(d2, s, Q, "d2 * s", true);    // ✅ 저장됨
+  // const d3s2 = polyMulMod(d3, s2, Q, "d3 * s²", true);  // ✅ 저장됨
+  
 
-  console.log("🧮 d1:", d1.slice(0, 10).map(String));
-  console.log("🧮 d2·s:", d2s.slice(0, 10).map(String));
-  console.log("🧮 d3·s²:", d3s2.slice(0, 10).map(String));
 
   const m_squared_scaled = d1.map((val, i) =>
     ((val + d2s[i] + d3s2[i]) % Q + Q) % Q
   );
 
   const m_squared = m_squared_scaled.map(x => Number(x) / Number(DELTA) ** 2);
-  
-  console.table(
-    m_squared.slice(0, 10).map((val, i) => ({
-      index: i,
-      "m̃² (정규화된 값)": val,
-      "m̃² * Δ²": Number(m_squared_scaled[i]),
-    }))
-  );
-
   const distance = Math.sqrt(m_squared.reduce((sum, x) => sum + x, 0));
-  console.log("📏 최종 유클리드 거리:", distance.toFixed(100));  // 소수점 12자리까지 출력
-
   return distance;
 }
 
+// export function evaluateDistanceSquared(d1, d2, d3, s) {
+//   const s2 = polyMulMod(s, s);       // s²
+//   const d2s = polyMulMod(d2, s);     // d₂·s
+//   console.log("🧪 d2 (앞부분):", d2.slice(0, 5));
+//   console.log("🧪 s  (앞부분):", s.slice(0, 5));
+
+//   // const testMul = polyMulMod(d2.slice(0, 5), s.slice(0, 5));
+//   // console.log("🧮 d2·s (테스트):", testMul);
+
+
+//   const d3s2 = polyMulMod(d3, s2);   // d₃·s²
+
+//   console.log("🧮 d1:", d1.slice(0, 10).map(String));
+//   console.log("🧮 d2·s:", d2s.slice(0, 10).map(String));
+//   console.log("🧮 d3·s²:", d3s2.slice(0, 10).map(String));
+
+//   const m_squared_scaled = d1.map((val, i) =>
+//     ((val + d2s[i] + d3s2[i]) % Q + Q) % Q
+//   );
+
+//   const m_squared = m_squared_scaled.map(x => Number(x) / Number(DELTA) ** 2);
+  
+//   console.table(
+//     m_squared.slice(0, 10).map((val, i) => ({
+//       index: i,
+//       "m̃² (정규화된 값)": val,
+//       "m̃² * Δ²": Number(m_squared_scaled[i]),
+//     }))
+//   );
+
+//   const distance = Math.sqrt(m_squared.reduce((sum, x) => sum + x, 0));
+//   console.log("📏 최종 유클리드 거리:", distance.toFixed(100));  // 소수점 12자리까지 출력
+
+//   return distance;
+// }
