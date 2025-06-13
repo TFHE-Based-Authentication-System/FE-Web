@@ -4,6 +4,7 @@ import {
   encryptEmbedding,
   decryptEmbedding,
   evaluateDistanceSquared,
+  verifyDecryptionTable,
   Q,
   DELTA,
   
@@ -11,7 +12,18 @@ import {
 
 import { useEffect, useRef, useState } from 'react';
 
+function downloadSecretKey(s) {
+  const s_str = s.map(x => x.toString());  // BigInt → 문자열
+  const blob = new Blob([JSON.stringify(s_str)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
 
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'secret_key_s.json';
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
 function FaceEmbedding() {
   const videoRef = useRef(null);
   const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -44,50 +56,30 @@ function FaceEmbedding() {
   const signedModQ = (x) => (x > Q / 2n ? x - Q : x);
 
   const handleVerifyDecryption = async () => {
-    if (!modelsLoaded) {
-      alert("모델이 아직 로드되지 않았습니다.");
-      return;
-    }
-
+    if (!modelsLoaded) return alert("모델이 아직 로드되지 않았습니다.");
     const embedding = await extractEmbedding();
-    if (!embedding) {
-      alert("❗ 얼굴을 찾을 수 없습니다.");
-      return;
-    }
-
+    if (!embedding) return alert("❗ 얼굴을 찾을 수 없습니다.");
+  
     const { c1, c2, s, originalIFFT } = encryptEmbedding(embedding).full;
     const decrypted = decryptEmbedding(c1, c2, s);
-    const m_signed = decrypted.map(x => signedModQ(x));
-    const approx = m_signed.map(x => Number(x) / Number(DELTA));
-
-    // 비교표 형태로 콘솔에 출력
-    console.table(
-      approx.slice(0, 10).map((val, i) => ({
-        index: i,
-        "복호화된 실수": val,
-        "원래 IFFT 실수": originalIFFT[i].re,
-        "오차": val - originalIFFT[i].re
-      }))
-    );
-
-    const errors = approx.map((val, i) => val - originalIFFT[i].re);
-    const mse = errors.reduce((sum, err) => sum + err * err, 0) / approx.length;
-    const maxError = Math.max(...errors.map(Math.abs));
-
-    console.log(`📉 MSE (복호화 정확도): ${mse.toExponential(4)}`);
-    console.log(`📈 최대 오차: ${maxError.toExponential(4)}`);
-    alert("✅ 복호화 검증 완료. 콘솔에서 비교 표 확인하세요.");
+    const approx = decrypted;
+  
+    verifyDecryptionTable(originalIFFT, approx); // ✅ 여기서 표와 오차 자동 출력
+    alert("✅ 복호화 검증 완료. 콘솔에서 비교 결과를 확인하세요.");
   };
+  
 
   const handleCapture = async () => {
     if (!modelsLoaded) return alert('아직 모델이 로드되지 않았습니다.');
     const embedding = await extractEmbedding();
     if (!embedding) return alert('❗ 얼굴을 찾을 수 없습니다.');
 
-    const { c1, c2, s } = encryptEmbedding(embedding).full;
+    const { c1, c2 ,s} = encryptEmbedding(embedding).full;
     const c1_str = c1.map(x => x.toString());
     const c2_str = c2.map(x => x.toString());
-    const s_str = s.map(x => x.toString())
+    const s_str = s.map(x => x.toString());
+    
+    downloadSecretKey(s); // ✅ 여기에 넣기
 
     const userId = localStorage.getItem("userId");
     if (!userId || isNaN(userId)) return alert("유저 정보가 없습니다.");
@@ -165,6 +157,10 @@ function FaceEmbedding() {
     URL.revokeObjectURL(url);
   }
   
+
+  
+  
+
   const handleCompareWithServerResult = async () => {
     try {
       const email = localStorage.getItem("email");
@@ -178,62 +174,62 @@ function FaceEmbedding() {
       if (!embedding) return alert("❗ 얼굴을 찾을 수 없습니다.");
   
       const { c1, c2 } = encryptEmbedding(embedding).full;
-      const c1_num = c1.map(Number);
-      const c2_num = c2.map(Number);
+      
+      // 디버깅을 위한 로그 추가
+      console.log("c1 첫 5개 값:", c1.slice(0, 5).map(x => x.toString()));
+      console.log("c2 첫 5개 값:", c2.slice(0, 5).map(x => x.toString()));
   
-      // 서버에 암호문 전송 → d1 = a, d2 = b, d3 = c 형태 응답 받음
+      // BigInt를 문자열로 변환 (소수점 제거)
+      const c1_str = c1.map(x => {
+        const str = x.toString();
+        // 소수점이 있다면 제거
+        return str.includes('.') ? str.split('.')[0] : str;
+      });
+      const c2_str = c2.map(x => {
+        const str = x.toString();
+        return str.includes('.') ? str.split('.')[0] : str;
+      });
+  
+      // 서버에 암호문 전송
       const res = await fetch("https://faceauthserver.shop/api/features/coefficients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, c1: c1_num, c2: c2_num })
+        body: JSON.stringify({ email, c1: c1_str, c2: c2_str })
       });
   
       const responseJson = await res.json();
       if (!Array.isArray(responseJson) || responseJson.length === 0) {
-        console.error("❌ 서버에서 유효한 a,b,c 응답을 받지 못했습니다.");
+        console.error("❌ 서버에서 유효한 응답 없음");
         alert("❌ 비교 결과가 올바르지 않습니다.");
         return;
       }
-      console.log("📦 백엔드에서 받은 계수 목록 (상위 5개):");
-      responseJson.slice(0, 5).forEach((item, i) => {
-      console.log(`  [${i}] a (d1) = ${item.a}`);
-      console.log(`      b (d2) = ${item.b}`);
-      console.log(`      c (d3) = ${item.c}`);
-      });
-
   
-      // 📥 서버에서 받은 d1 = a, d2 = b, d3 = c
+      // 서버에서 받은 d1, d2, d3를 BigInt로 변환
       const d1 = responseJson.map(item => BigInt(item.a));
       const d2 = responseJson.map(item => BigInt(item.b));
       const d3 = responseJson.map(item => BigInt(item.c));
-      
+      console.log("d2 길이:", d2.length);
+      console.log("s 길이:", s.length);
+        // 예시: d2, s를 파일로 저장
 
-      
-
-      
-      console.log("📥 서버 응답 확인 (처리 전):", responseJson.slice(0, 5));
-      console.log("📥 d1:", d1.slice(0, 5));
-      console.log("📥 d2:", d2.slice(0, 5));
-      console.log("📥 d3:", d3.slice(0, 5));
-      // 서버에서 받은 d1 = a, d2 = b, d3 = c
-
-      // 📝 파일로 저장 (문자열 배열로 저장)
-      // downloadJSON("d1.json", d1.map(x => x.toString()));
-      // downloadJSON("d2.json", d2.map(x => x.toString()));
-      // downloadJSON("d3.json", d3.map(x => x.toString()));
-
-      // ✅ 거리 계산
+      // downloadJSON("d1.json", d2.map(x => x.toString())); // d2는 BigInt 배열
+      // downloadJSON("d2.json", d2.map(x => x.toString())); // d2는 BigInt 배열
+      // downloadJSON("d3.json", d2.map(x => x.toString())); // d2는 BigInt 배열
+      // // downloadJSON("d2.json", d2.map(x => x.toString())); // d2는 BigInt 배열
+      // // downloadJSON("s.json", s.map(x => x.toString()));   // s도 BigInt 배열
+  
+  
+      // 거리 계산
       const distance = evaluateDistanceSquared(d1, d2, d3, s);
-
       console.log(`📏 복호화된 거리 ≈ ${distance}`);
-      alert(`🔍 거리 ≈ ${distance.toFixed(6)} (0에 가까우면 동일인)`);
+      // BigInt를 Number로 변환 후 toFixed 사용
+      const distanceNum = Number(distance);
+      alert(`🔍 거리 ≈ ${distanceNum.toFixed(6)} (0에 가까우면 동일인)`);
   
     } catch (err) {
       console.error("❌ 거리 비교 실패:", err);
       alert("❗ 거리 계산 중 오류 발생");
     }
-    
-
   };
   
   

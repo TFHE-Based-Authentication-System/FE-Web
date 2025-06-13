@@ -1,5 +1,5 @@
 export const N = 256n;
-export const Q = 2n ** 60n;
+export const Q = 2n ** 120n;
 export const DELTA = 2n ** 40n;
 
 export class Complex {
@@ -19,13 +19,13 @@ export function genSmallPoly(n, values) {
   );
 }
 
+
 export function polyMulMod(p1, p2, q = Q) {
-  // const Nint = Number(N);
   const Nint = p1.length;
   const full = new Array(2 * Nint - 1).fill(0n);
   for (let i = 0; i < Nint; i++) {
     for (let j = 0; j < Nint; j++) {
-      full[i + j] += BigInt(p1[i]) * BigInt(p2[j]);
+      full[i + j] = (full[i + j] + (p1[i] * p2[j]) % q) % q;
     }
   }
 
@@ -33,15 +33,16 @@ export function polyMulMod(p1, p2, q = Q) {
   for (let i = 0; i < full.length; i++) {
     const idx = i % Nint;
     if (i < Nint) {
-      reduced[idx] += full[i];
+      reduced[idx] = (reduced[idx] + full[i]) % q;
     } else {
-      reduced[idx] -= full[i]; // x^N ≡ -1
+      reduced[idx] = (reduced[idx] - full[i] + q) % q;
     }
-    reduced[idx] = ((reduced[idx] % q) + q) % q;
   }
 
   return reduced;
 }
+
+
 // export function polyMulMod(p1, p2, q = Q, label = "🔍 디버그 곱셈", shouldSave = false) {
 //   const Nint = p1.length;
 //   const full = new Array(2 * Nint - 1).fill(0n);
@@ -142,70 +143,27 @@ export function pureIFFT(X) {
 
   return result;
 }
-// Ifft 하기 전 값을 더한 것과 IFFT한것의 [0]번째 값 비교
-// export function encryptEmbedding(embedding) {
-//   const extended = hermitianExtend(embedding);
-//   const X_input = extended.map(x => new Complex(x, 0));
-//   const ifft = pureIFFT(X_input);
-
-//   const m = ifft.map(z => {
-//     const val = BigInt(Math.round(z.re * Number(DELTA)));
-//     return ((val % Q) + Q) % Q;
-//   });
-
-//   val[0] 
-
-
-//   // a ∈ [-Q/2, Q/2]
-//   const a = Array.from({ length: Number(N) }, () => {
-//     const rand = BigInt(Math.floor(Math.random() * Number(Q)));
-//     return ((rand - Q / 2n + Q) % Q);
-//   });
-
-//   const s = genSmallPoly(Number(N), [-1n, 0n, 1n]);
-//   const e = genSmallPoly(Number(N), [-1n, 0n, 1n]);
-//   const b = a.map((ai, i) => ((-ai * s[i] + e[i]) % Q + Q) % Q);
-
-//   const u = genSmallPoly(Number(N), [0n, 1n]);
-//   const e1 = genSmallPoly(Number(N), [-1n, 0n, 1n]);
-//   const e2 = genSmallPoly(Number(N), [-1n, 0n, 1n]);
-
-//   const bu = polyMulMod(b, u);
-//   const au = polyMulMod(a, u);
-
-//   const c1 = m.map((mi, i) => ((mi + bu[i] + e1[i]) % Q + Q) % Q);
-//   const c2 = au.map((ai, i) => ((ai + e2[i]) % Q + Q) % Q);
-
-//   return {
-//     full: {
-//       c1, c2, a, b, s, u, m, originalIFFT: ifft
-//     }
-//   };
-// }
 
 export function encryptEmbedding(embedding) {
-  const scaled = embedding.map(x => x * 5);
-  // const extended = hermitianExtend(embedding);
-  const extended = hermitianExtend(scaled);
+  
+  //  const scaled = embedding.map(x => x * 2**40); // 스케일링 적용
+  const extended = hermitianExtend(embedding); //기존 코드
+  // const extended = hermitianExtend(scaled);
+  
   const X_input = extended.map(x => new Complex(x, 0));
   const ifft = pureIFFT(X_input);
 
+  console.log("[암호화] 원본 IFFT 실수:", ifft.map(z => z.re).slice(0, 10));
+
+  const signedModQ = (x) => (x > Q / 2n ? x - Q : x);
   const m = ifft.map(z => {
     const val = BigInt(Math.round(z.re * Number(DELTA)));
-    return ((val % Q) + Q) % Q;
+    const modded = ((val % Q) + Q) % Q;
+    return signedModQ(modded);
   });
 
-  
-  const sigma = m[0];
-  const raw_re0 = ifft[0].re;
-  const rounded_val0 = Math.round(raw_re0 * Number(DELTA));
-  console.log("🎯 IFFT[0].re =", raw_re0);
-  console.log("🔢 σ (정수형) = Math.round(re * DELTA) =", rounded_val0);
-  console.log("🧮 σ (BigInt 변환 후 mod Q) =", sigma.toString());
-  
+  console.log("[암호화] 암호화된 m (정수):", m.slice(0, 10));
 
-
-  // a ∈ [-Q/2, Q/2]
   const a = Array.from({ length: Number(N) }, () => {
     const rand = BigInt(Math.floor(Math.random() * Number(Q)));
     return ((rand - Q / 2n + Q) % Q);
@@ -213,8 +171,9 @@ export function encryptEmbedding(embedding) {
 
   const s = genSmallPoly(Number(N), [-1n, 0n, 1n]);
   const e = genSmallPoly(Number(N), [-1n, 0n, 1n]);
-  const b = a.map((ai, i) => ((-ai * s[i] + e[i]) % Q + Q) % Q);
-  console.log("🧪 s =", s); // s가 전부 0인지 확인
+  // 다항식 곱으로 b 계산
+  const as = polyMulMod(a, s, Q);
+  const b = as.map((val, i) => ((-val + e[i]) % Q + Q) % Q);
 
   const u = genSmallPoly(Number(N), [0n, 1n]);
   const e1 = genSmallPoly(Number(N), [-1n, 0n, 1n]);
@@ -227,20 +186,8 @@ export function encryptEmbedding(embedding) {
   const c2 = au.map((ai, i) => ((ai + e2[i]) % Q + Q) % Q);
 
   return {
-    full: {
-      c1, c2, a, b, s, u, m, originalIFFT: ifft
-    }
+    full: { c1, c2, a, b, s, u, m, originalIFFT: ifft }
   };
-}
-
-function saveDebugLog(logLines, filename = "poly_debug_log.txt") {
-  const blob = new Blob([logLines.join('\n')], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 
@@ -248,42 +195,77 @@ function saveDebugLog(logLines, filename = "poly_debug_log.txt") {
 
 export function decryptEmbedding(c1, c2, s) {
   const s_c2 = polyMulMod(s, c2);
-  return c1.map((ci, i) => ((ci + s_c2[i]) % Q + Q) % Q);
-}
 
-export function verifyEncryptedMessage(originalIFFT, decryptedBigVec) {
-  const diffs = originalIFFT.map((z, i) => {
-    const expected = BigInt(Math.round(z.re * Number(DELTA)));
-    const actual = decryptedBigVec[i];
-    return expected > actual ? expected - actual : actual - expected;
+  const decrypted = c1.map((ci, i) => ((ci + s_c2[i]) % Q + Q) % Q);
+
+  const signedModQ = (x) => (x > Q / 2n ? x - Q : x);
+  const m_signed = decrypted.map(x => signedModQ(x));
+
+  const DELTA_F = 2 ** 40;  // DELTA in float
+  const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);  // 2^53 - 1
+
+  const approx = m_signed.map((x, i) => {
+    // 안전한 변환 범위 확인
+    if (x > maxSafe || x < -maxSafe) {
+      console.warn(`⚠️ Index ${i}: x=${x} exceeds JS safe range`);
+    }
+
+    const floatX = Number(x);  // JS에서 부동소수점 정밀도 손실 감수
+    const real = floatX / DELTA_F;
+    return real;
   });
 
-  const maxDiff = diffs.reduce((max, val) => val > max ? val : max, 0n);
-  const floatError = Number(maxDiff) / Number(DELTA);
-
-  console.log("🔍 최대 오차 (BigInt):", maxDiff.toString());
-  console.log("📉 실수 기준 최대 오차 (maxDiff / DELTA):", floatError.toExponential(10));
-
-  return decryptedBigVec.map(bi => Number(bi) / Number(DELTA));
+  console.log("🔓 복호화된 실수:", approx.slice(0, 10));
+  return approx;
 }
+
+export function verifyDecryptionTable(originalIFFT, approx) {
+  const diffs = approx.map((val, i) => val - originalIFFT[i].re);
+  const table = approx.slice(0, 10).map((val, i) => ({
+    index: i,
+    "복호화된 실수": val.toFixed(6),
+    "원래 IFFT 실수": originalIFFT[i].re.toFixed(6),
+    "오차": diffs[i].toExponential(3),
+  }));
+  console.table(table);
+
+  const mse = diffs.reduce((sum, err) => sum + err * err, 0) / approx.length;
+  const maxError = Math.max(...diffs.map(Math.abs));
+  console.log(`📉 MSE (복호화 정확도): ${mse.toExponential(4)}`);
+  console.log(`📈 최대 오차: ${maxError.toExponential(4)}`);
+
+  return { mse, maxError };
+}
+
+
 
 export function evaluateDistanceSquared(d1, d2, d3, s) {
   const s2 = polyMulMod(s, s);       // s²
   const d2s = polyMulMod(d2, s);     // d₂·s
   const d3s2 = polyMulMod(d3, s2);   // d₃·s²
-  // const s2 = polyMulMod(s, s, Q, "s * s → s²");
-  // const d2s = polyMulMod(d2, s, Q, "d2 * s", true);    // ✅ 저장됨
-  // const d3s2 = polyMulMod(d3, s2, Q, "d3 * s²", true);  // ✅ 저장됨
-  
+  console.log("🧪 d2 (앞부분):", d2.slice(0, 5));
+  console.log("🧪 s  (앞부분):", s.slice(0, 5));
+  const testMul = polyMulMod(d2.slice(0, 5), s.slice(0, 5));
+  console.log("🧮 d2·s (테스트):", testMul);
 
+  console.log("🧮 d1:", d1.slice(0, 10).map(String));
+  console.log("🧮 d2·s:", d2s.slice(0, 10).map(String));
+  console.log("🧮 d3·s²:", d3s2.slice(0, 10).map(String));
 
   const m_squared_scaled = d1.map((val, i) =>
     ((val + d2s[i] + d3s2[i]) % Q + Q) % Q
   );
 
-  const m_squared = m_squared_scaled.map(x => Number(x) / Number(DELTA) ** 2);
-  const distance = Math.sqrt(m_squared.reduce((sum, x) => sum + x, 0));
-  return distance;
+  
+  // DELTA^2로 정규화만 하고 루트는 안 씌움!
+  const total = m_squared_scaled.reduce((sum, x) => sum + Number(x), 0);
+  const distance_squared = total / (Number(DELTA) ** 2);
+    
+
+  console.log("📦 m̃² 총합:", total);
+  console.log("🧮 정규화된 거리(제곱):", distance_squared);
+
+  return distance_squared;
 }
 
 // export function evaluateDistanceSquared(d1, d2, d3, s) {
