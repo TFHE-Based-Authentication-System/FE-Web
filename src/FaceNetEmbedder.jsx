@@ -74,7 +74,15 @@ function FaceEmbedding() {
     const embedding = await extractEmbedding();
     if (!embedding) return alert('❗ 얼굴을 찾을 수 없습니다.');
 
-    const { c1, c2 ,s} = encryptEmbedding(embedding).full;
+    // 공개키 로그 추가
+    const a = JSON.parse(localStorage.getItem("publicKeyA"));
+    const b = JSON.parse(localStorage.getItem("publicKeyB"));
+    console.log("[등록] 공개키 a (앞 10개):", a ? a.slice(0, 10) : "없음");
+    console.log("[등록] 공개키 b (앞 10개):", b ? b.slice(0, 10) : "없음");
+
+    const { c1, c2, s } = encryptEmbedding(embedding).full;
+    // 시크릿키 로그 출력
+    console.log("🔑 등록 시 생성된 시크릿키(s):", s.slice(0, 10).map(x => x.toString()));
     const c1_str = c1.map(x => x.toString());
     const c2_str = c2.map(x => x.toString());
     const s_str = s.map(x => x.toString());
@@ -146,7 +154,14 @@ function FaceEmbedding() {
     alert("✅ 테스트용 암호문 저장 완료 (JSON)");
   };
 
-  
+  const handlePrintEmbedding = async () => {
+    if (!modelsLoaded) return alert('모델이 로드되지 않았습니다.');
+    const embedding = await extractEmbedding();
+    if (!embedding) return alert('❗ 얼굴을 찾을 수 없습니다.');
+    console.log("임베딩 벡터:", embedding);
+    alert("콘솔에서 임베딩 벡터를 확인하세요!");
+  };
+
   function downloadJSON(filename, data) {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -156,6 +171,15 @@ function FaceEmbedding() {
     a.click();
     URL.revokeObjectURL(url);
   }
+  
+
+  const handleSaveEmbedding = async () => {
+    if (!modelsLoaded) return alert('모델이 로드되지 않았습니다.');
+    const embedding = await extractEmbedding();
+    if (!embedding) return alert('❗ 얼굴을 찾을 수 없습니다.');
+    downloadJSON("embedding.json", embedding);
+    alert("임베딩 벡터가 파일로 저장되었습니다!");
+  };
   
 
   
@@ -169,7 +193,15 @@ function FaceEmbedding() {
       const s_str = localStorage.getItem("secretKey");
       if (!s_str) return alert("Secret key가 없습니다. 먼저 얼굴을 등록하세요.");
       const s = JSON.parse(s_str).map(BigInt);
-  
+      // 시크릿키 로그 출력
+      console.log("🔑 인증 시 사용되는 시크릿키(s):", s.slice(0, 10).map(x => x.toString()));
+
+      // 공개키 로그 추가
+      const a = JSON.parse(localStorage.getItem("publicKeyA"));
+      const b = JSON.parse(localStorage.getItem("publicKeyB"));
+      console.log("[인증] 공개키 a (앞 10개):", a ? a.slice(0, 10) : "없음");
+      console.log("[인증] 공개키 b (앞 10개):", b ? b.slice(0, 10) : "없음");
+
       const embedding = await extractEmbedding();
       if (!embedding) return alert("❗ 얼굴을 찾을 수 없습니다.");
   
@@ -220,17 +252,20 @@ function FaceEmbedding() {
   
   
       // 거리 계산
-      const distance = evaluateDistanceSquared(d1, d2, d3, s);
-      console.log(`📏 복호화된 거리 ≈ ${distance}`);
+      const { distance_squared, isSamePerson } = evaluateDistanceSquared(d1, d2, d3, s);
+      console.log(`📏 복호화된 거리 ≈ ${distance_squared}`);
       // BigInt를 Number로 변환 후 toFixed 사용
-      const distanceNum = Number(distance);
-      alert(`🔍 거리 ≈ ${distanceNum.toFixed(6)} (0에 가까우면 동일인)`);
-  
+      const resultMsg = isSamePerson
+        ? "✅ 얼굴 인증 성공: 동일인으로 인식됨"
+        : "❌ 얼굴 인증 실패: 다른 사람으로 인식됨";
+
+      alert(`🔍 거리 ≈ ${distance_squared.toFixed(6)}\n${resultMsg}`);
     } catch (err) {
       console.error("❌ 거리 비교 실패:", err);
       alert("❗ 거리 계산 중 오류 발생");
     }
   };
+  
   
   
   
@@ -272,6 +307,8 @@ function FaceEmbedding() {
         <button className="primary-button" onClick={handleCompareWithServerResult}>얼굴 인증</button>
         <button className="secondary-button" onClick={handleTestSave}>📥 암호문 저장</button>
         <button className="secondary-button" onClick={handleVerifyDecryption}>🔍 복호화 검증</button>
+        <button className="secondary-button" onClick={handlePrintEmbedding}>임베딩 콘솔 출력</button>
+        <button className="secondary-button" onClick={handleSaveEmbedding}>임베딩 파일 저장</button>
       </div>
     </div>
   );

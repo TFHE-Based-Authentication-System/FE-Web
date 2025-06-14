@@ -1,6 +1,6 @@
 export const N = 256n;
 export const Q = 2n ** 120n;
-export const DELTA = 2n ** 40n;
+export const DELTA = 2n ** 60n;
 
 export class Complex {
   constructor(re, im) {
@@ -145,6 +145,7 @@ export function pureIFFT(X) {
 }
 
 export function encryptEmbedding(embedding) {
+  console.log("[암호화] 원본 임베딩 벡터:", embedding.slice(0, 10)); // 👈 로그 추가
   
   //  const scaled = embedding.map(x => x * 2**40); // 스케일링 적용
   const extended = hermitianExtend(embedding); //기존 코드
@@ -170,14 +171,17 @@ export function encryptEmbedding(embedding) {
   });
 
   const s = genSmallPoly(Number(N), [-1n, 0n, 1n]);
-  const e = genSmallPoly(Number(N), [-1n, 0n, 1n]);
+  const e = new Array(Number(N)).fill(0n);
+  const e1 = new Array(Number(N)).fill(0n);
+  const e2 = new Array(Number(N)).fill(0n);
+  const u = new Array(Number(N)).fill(0n);
   // 다항식 곱으로 b 계산
   const as = polyMulMod(a, s, Q);
   const b = as.map((val, i) => ((-val + e[i]) % Q + Q) % Q);
 
-  const u = genSmallPoly(Number(N), [0n, 1n]);
-  const e1 = genSmallPoly(Number(N), [-1n, 0n, 1n]);
-  const e2 = genSmallPoly(Number(N), [-1n, 0n, 1n]);
+  // const u = genSmallPoly(Number(N), [0n, 1n]);
+  // const e1 = genSmallPoly(Number(N), [-1n, 0n, 1n]);
+  // const e2 = genSmallPoly(Number(N), [-1n, 0n, 1n]);
 
   const bu = polyMulMod(b, u);
   const au = polyMulMod(a, u);
@@ -243,30 +247,32 @@ export function evaluateDistanceSquared(d1, d2, d3, s) {
   const s2 = polyMulMod(s, s);       // s²
   const d2s = polyMulMod(d2, s);     // d₂·s
   const d3s2 = polyMulMod(d3, s2);   // d₃·s²
-  console.log("🧪 d2 (앞부분):", d2.slice(0, 5));
-  console.log("🧪 s  (앞부분):", s.slice(0, 5));
-  const testMul = polyMulMod(d2.slice(0, 5), s.slice(0, 5));
-  console.log("🧮 d2·s (테스트):", testMul);
-
-  console.log("🧮 d1:", d1.slice(0, 10).map(String));
-  console.log("🧮 d2·s:", d2s.slice(0, 10).map(String));
-  console.log("🧮 d3·s²:", d3s2.slice(0, 10).map(String));
 
   const m_squared_scaled = d1.map((val, i) =>
     ((val + d2s[i] + d3s2[i]) % Q + Q) % Q
   );
 
-  
-  // DELTA^2로 정규화만 하고 루트는 안 씌움!
-  const total = m_squared_scaled.reduce((sum, x) => sum + Number(x), 0);
-  const distance_squared = total / (Number(DELTA) ** 2);
-    
+  let totalBigInt = 0n;
+  for (let x of m_squared_scaled) {
+    totalBigInt = (totalBigInt + x) % Q;
+  }
 
-  console.log("📦 m̃² 총합:", total);
+  const DELTA_SQUARED = DELTA * DELTA;
+  const distance_squared = Number(totalBigInt) / Number(DELTA_SQUARED);
+
+  const threshold = 0.2;
+  const isSamePerson = distance_squared < threshold;
+
+  console.log("📦 m̃² 총합(BigInt):", totalBigInt.toString());
   console.log("🧮 정규화된 거리(제곱):", distance_squared);
+  console.log("✅ 동일인 여부:", isSamePerson ? "동일인" : "다른 사람");
 
-  return distance_squared;
+  return { distance_squared, isSamePerson };
 }
+
+
+
+
 
 // export function evaluateDistanceSquared(d1, d2, d3, s) {
 //   const s2 = polyMulMod(s, s);       // s²
